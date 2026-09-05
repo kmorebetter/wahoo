@@ -71,7 +71,7 @@
 * { box-sizing: border-box; }
 
 /* While a game is on screen, use the whole window: big monitors get a big
-   board (the canvas caps at 1600px, where its 2x backing store runs out). */
+   board (the canvas caps at 1600px; its backing store scales with DPI). */
 #app:has(#game:not([hidden])) { max-width: 2200px; }
 
 [hidden] { display: none !important; }

@@ -207,9 +207,11 @@ export class BoardView {
       height: SIZE,
       background: PAPER,
       antialias: true,
-      // Render at 2x (or the device ratio if higher): text such as the seat
-      // pills stays crisp when CSS scales the canvas.
-      resolution: Math.max(2, globalThis.devicePixelRatio || 1),
+      // The canvas can be displayed at up to ~2x its 820px logical size, and
+      // each CSS pixel is devicePixelRatio device pixels: render with enough
+      // backing store for both so nothing looks pixelated on big or high-DPI
+      // screens (capped at 4x = a 3280px backing store).
+      resolution: Math.min(4, 2 * (globalThis.devicePixelRatio || 1)),
     });
     this.app.canvas.classList.add('board-canvas');
     // The canvas itself is opaque to assistive tech; give it a name and let
