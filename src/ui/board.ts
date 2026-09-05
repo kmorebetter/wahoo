@@ -547,6 +547,12 @@ export class BoardView {
       const piece = this.pieces.get(id);
       if (piece) candidates.push({ x: piece.tx, y: piece.ty, act: () => this.cb.onBunny(id) });
     }
+    // The picked-up bunny too: tapping it again puts it back down.
+    if (hi.selected !== null) {
+      const id = hi.selected;
+      const piece = this.pieces.get(id);
+      if (piece) candidates.push({ x: piece.tx, y: piece.ty, act: () => this.cb.onBunny(id) });
+    }
     for (const i of hi.track.keys()) {
       const p = trackPos(i);
       candidates.push({ x: p.x, y: p.y, act: () => this.cb.onTrack(i) });

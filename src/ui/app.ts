@@ -210,6 +210,12 @@ export class App {
     const actions = selectedActions(view, this.sel);
     const bunny = view.bunnies.find(b => b.id === id)!;
 
+    // Re-clicking the picked bunny puts it back down.
+    if (this.sel.bunny === id) {
+      this.sel.bunny = null;
+      return this.refresh();
+    }
+
     if (this.sel.bunny !== null) {
       // A swap target?
       const swap = actions.find(
