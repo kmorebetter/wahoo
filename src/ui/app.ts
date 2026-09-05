@@ -101,8 +101,8 @@ export class App {
     bubble.className = `emote-bubble seat-${seat}`;
     bubble.innerHTML = emoteHtml(emoji, PLAYER_COLORS_CSS[seat]);
     $('#board-wrap').appendChild(bubble);
-    playEmoteSound();
-    setTimeout(() => bubble.remove(), 2600);
+    playEmoteSound(emoji);
+    setTimeout(() => bubble.remove(), 4200);
   }
 
   startLocalMeta(humans: number) {

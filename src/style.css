@@ -627,15 +627,15 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
 .emote-bubble {
   position: absolute; z-index: 6; font-size: 2.6rem; pointer-events: none;
   opacity: 0; line-height: 0;
-  animation: emote-pop 2.6s ease-in-out forwards;
+  animation: emote-pop 4.2s ease-in-out forwards;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 .emote-bubble .emote { width: 96px; height: 103px; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
 @keyframes emote-pop {
   0% { opacity: 0; transform: translate(0, 0) scale(0.3); }
-  18% { opacity: 1; transform: translate(calc(var(--dx) * 0.65), calc(var(--dy) * 0.65)) scale(1.25); }
-  35% { transform: translate(var(--dx), var(--dy)) scale(1); }
-  78% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1); }
+  11% { opacity: 1; transform: translate(calc(var(--dx) * 0.65), calc(var(--dy) * 0.65)) scale(1.25); }
+  22% { transform: translate(var(--dx), var(--dy)) scale(1); }
+  86% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1); }
   100% { opacity: 0; transform: translate(calc(var(--dx) * 1.35), calc(var(--dy) * 1.35)) scale(0.75); }
 }
 .emote-bubble.seat-0 { right: 4%; bottom: 4%; --dx: -64px; --dy: -64px; }

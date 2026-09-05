@@ -35,8 +35,8 @@ export function setMuted(value: boolean) {
  * a celebratory fanfare when a bunny reaches its burrow, a squash when one is
  * stomped, and a hop when one comes out of reserve or is swapped.
  */
-/** A soft cartoon pop for reactions, synthesized so no asset is needed. */
-export function playEmoteSound(): void {
+/** Each reaction gets its own little synthesized voice — no assets needed. */
+export function playEmoteSound(id = ''): void {
   if (muted) return;
   try {
     type AudioCtor = typeof AudioContext;
@@ -47,16 +47,46 @@ export function playEmoteSound(): void {
     popCtx ??= new Ctor();
     const ctx = popCtx;
     const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, t0);
-    osc.frequency.exponentialRampToValueAtTime(180, t0 + 0.09);
-    gain.gain.setValueAtTime(0.18, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.13);
+    const blip = (
+      at: number,
+      from: number,
+      to: number,
+      dur: number,
+      type: OscillatorType = 'sine',
+      vol = 0.16,
+    ) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(from, t0 + at);
+      osc.frequency.exponentialRampToValueAtTime(to, t0 + at + dur);
+      gain.gain.setValueAtTime(vol, t0 + at);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + at + dur + 0.03);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0 + at);
+      osc.stop(t0 + at + dur + 0.05);
+    };
+    switch (id) {
+      case 'wahoo': // two rising cheers
+        blip(0, 420, 880, 0.12);
+        blip(0.11, 620, 1240, 0.16);
+        break;
+      case 'lol': // a pair of chuckles
+        blip(0, 500, 380, 0.09);
+        blip(0.12, 560, 420, 0.09);
+        break;
+      case 'gasp': // sharp intake
+        blip(0, 300, 950, 0.14, 'triangle');
+        break;
+      case 'smug': // smooth slide down
+        blip(0, 520, 240, 0.22, 'sine', 0.13);
+        break;
+      case 'finger': // flat little buzz
+        blip(0, 180, 140, 0.16, 'square', 0.07);
+        break;
+      default:
+        blip(0, 520, 180, 0.12);
+    }
   } catch {
     /* audio may be blocked before the first gesture */
   }
