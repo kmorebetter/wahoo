@@ -499,10 +499,6 @@ export class BoardView {
     const C = R / 0.35; // the bunny is drawn in cell units around a 0.35-cell body
     const base = PIECE_GRADIENT[p][1];
 
-    const shadow = new Graphics();
-    shadow.ellipse(0, 0.4 * C, 0.32 * C, 0.1 * C).fill({ color: 0x3c2d1c, alpha: 0.28 });
-    root.addChild(shadow);
-
     for (const side of [-1, 1]) {
       const ear = new Graphics();
       ear.ellipse(0, -0.24 * C, 0.115 * C, 0.28 * C).fill(base);
