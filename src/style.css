@@ -259,6 +259,8 @@ input, select {
 /* Browsers size a styled <select> without its letter-spacing: reserve the
    room explicitly so MEDIUM / INSANE never clip. */
 .seat-row select { min-width: 110px; }
+#lobby select { min-width: 110px; }
+#house-rules select { min-width: 190px; }
 
 /* tabs */
 .tabs { display: flex; gap: 20px; margin: 20px 0 18px; border-bottom: 1px solid var(--rule); }
