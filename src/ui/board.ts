@@ -159,7 +159,7 @@ export interface BoardCallbacks {
 }
 
 /** Pause before a move starts animating, so the played card registers first. */
-const MOVE_START_DELAY_MS = 500;
+const MOVE_START_DELAY_MS = 900;
 
 interface MovePath {
   pts: { x: number; y: number }[];
