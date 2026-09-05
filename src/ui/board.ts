@@ -621,6 +621,12 @@ export class BoardView {
     return reservePos(bunny.player, reserveOrder);
   }
 
+  /** Live display position of a bunny's token (logical 820-space), if drawn. */
+  piecePos(id: number): { x: number; y: number } | null {
+    const piece = this.pieces.get(id);
+    return piece ? { x: piece.root.x, y: piece.root.y } : null;
+  }
+
   /** Remove all pieces so a new game starts clean. */
   resetPieces() {
     for (const piece of this.pieces.values()) piece.root.destroy({ children: true });

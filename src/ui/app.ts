@@ -396,8 +396,9 @@ export class App {
   private showFlipCallout(view: View) {
     const c = view.pendingFlip;
     if (!c) return;
+    const corner = trackPos(SPAWN_INDEX(view.current));
     this.showCallout(
-      trackPos(SPAWN_INDEX(view.current)),
+      () => corner,
       `<span class="mini-card${isRed(c) ? ' red' : ''}">${esc(c.rank + c.suit)}</span>`,
       `${inked(view, view.current)} flipped a bonus card!`,
     );
@@ -418,6 +419,10 @@ export class App {
     } else {
       pt = reservePos(seatOf(mover.bunny), 0);
     }
+    // Aim at the bunny itself while it hops; fall back to the destination.
+    const ptOf = mover
+      ? () => this.board.piecePos(mover.bunny) ?? pt
+      : () => pt;
     const who = inked(view, play.seat);
     const card = play.card;
     const cardHtml = play.fold || !card
@@ -426,17 +431,19 @@ export class App {
     const text = play.fold || !card
       ? `${who} folded — no playable cards.`
       : `${who} ${esc(play.desc || 'played')}${play.bonus ? ' <i>(bonus flip)</i>' : ''}`;
-    this.showCallout(pt, cardHtml, text);
+    this.showCallout(ptOf, cardHtml, text);
   }
 
-  /** A speech bubble beside the action, its tail pointing at `pt`. */
-  private showCallout(pt: { x: number; y: number }, cardHtml: string, text: string) {
+  private calloutTrack: number | null = null;
+
+  /** A speech bubble beside the action, its tail following `ptOf()` live. */
+  private showCallout(ptOf: () => { x: number; y: number }, cardHtml: string, text: string) {
     const el = $('#move-callout');
     el.innerHTML = `<div class="callout-box">${cardHtml}<span>${text}</span></div><div class="callout-tail"></div>`;
     el.hidden = false;
     el.classList.remove('show');
     const centre = this.boardPoint({ x: 410, y: 410 });
-    const target = this.boardPoint(pt);
+    const target = this.boardPoint(ptOf());
     // Sit a short way from the action, on its boardward side, staying on
     // the paper: the callout should feel attached to the move it describes.
     const dist = Math.hypot(centre.x - target.x, centre.y - target.y);
@@ -453,17 +460,32 @@ export class App {
     el.style.top = `${by}px`;
     const box = el.querySelector<HTMLElement>('.callout-box')!;
     const tail = el.querySelector<HTMLElement>('.callout-tail')!;
-    const ang = Math.atan2(target.y - by, target.x - bx);
-    // The tail starts just past the box edge and stretches to the action.
+    // The tail starts just past the box edge and stretches to the action —
+    // re-aimed every frame so it follows the bunny mid-hop.
     const w2 = box.offsetWidth / 2;
     const h2 = box.offsetHeight / 2;
-    const reach = Math.min(
-      w2 / Math.max(Math.abs(Math.cos(ang)), 1e-6),
-      h2 / Math.max(Math.abs(Math.sin(ang)), 1e-6),
-    ) - 2;
-    const tailLen = Math.hypot(target.x - bx, target.y - by);
-    tail.style.width = `${Math.max(14, tailLen - reach - 22)}px`;
-    tail.style.transform = `rotate(${ang}rad) translate(${reach}px, 0)`;
+    const aim = () => {
+      const t = this.boardPoint(ptOf());
+      const ang = Math.atan2(t.y - by, t.x - bx);
+      const reach = Math.min(
+        w2 / Math.max(Math.abs(Math.cos(ang)), 1e-6),
+        h2 / Math.max(Math.abs(Math.sin(ang)), 1e-6),
+      ) - 2;
+      const tailLen = Math.hypot(t.x - bx, t.y - by);
+      tail.style.width = `${Math.max(14, tailLen - reach - 22)}px`;
+      tail.style.transform = `rotate(${ang}rad) translate(${reach}px, 0)`;
+    };
+    aim();
+    if (this.calloutTrack !== null) cancelAnimationFrame(this.calloutTrack);
+    const follow = () => {
+      if (el.hidden || !tail.isConnected) {
+        this.calloutTrack = null;
+        return;
+      }
+      aim();
+      this.calloutTrack = requestAnimationFrame(follow);
+    };
+    this.calloutTrack = requestAnimationFrame(follow);
     void el.offsetWidth; // restart the animation
     el.classList.add('show');
     if (this.calloutTimer) clearTimeout(this.calloutTimer);
