@@ -102,8 +102,16 @@ export function trackPos(index: number) {
 export function burrowPos(player: number, slot: number) {
   const corner = trackPos(SPAWN_INDEX(player));
   const o = OUTWARD[player];
-  const r = (1.05 + slot * 0.78) * CELL;
-  return { x: corner.x - o.x * r, y: corner.y - o.y * r };
+  // Rotated 45° counter-clockwise from the old corner diagonal: each tunnel
+  // runs in the direction of play, one cell inside the track ring, so the
+  // hole nearest the corner clearly reads as the entrance.
+  const t = player % 2 === 0 ? { x: -o.x, y: 0 } : { x: 0, y: -o.y }; // travel past the corner
+  const q = player % 2 === 0 ? { x: 0, y: -o.y } : { x: -o.x, y: 0 }; // into the board
+  const r = (0.9 + slot * 0.78) * CELL;
+  return {
+    x: corner.x + t.x * r + q.x * 1.05 * CELL,
+    y: corner.y + t.y * r + q.y * 1.05 * CELL,
+  };
 }
 
 /**
@@ -322,13 +330,15 @@ export class BoardView {
     // Burrows: a dug earthen tunnel running in from each corner, with four
     // dark holes along it that get deeper toward the middle of the board.
     for (let p = 0; p < 4; p++) {
-      const o = OUTWARD[p];
       const a = burrowPos(p, 0);
       const b = burrowPos(p, 3);
-      const ax = a.x + o.x * 0.32 * CELL;
-      const ay = a.y + o.y * 0.32 * CELL;
-      const bx = b.x - o.x * 0.1 * CELL;
-      const by = b.y - o.y * 0.1 * CELL;
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      const ux = (b.x - a.x) / len;
+      const uy = (b.y - a.y) / len;
+      const ax = a.x - ux * 0.32 * CELL;
+      const ay = a.y - uy * 0.32 * CELL;
+      const bx = b.x + ux * 0.1 * CELL;
+      const by = b.y + uy * 0.1 * CELL;
       const tunnel = new Graphics();
       tunnel.moveTo(ax, ay + 2).lineTo(bx, by + 2)
         .stroke({ color: EARTH_DARK, alpha: 0.28, width: 1.1 * CELL, cap: 'round' });
