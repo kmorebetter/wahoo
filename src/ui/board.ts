@@ -213,7 +213,9 @@ export class BoardView {
     await this.app.init({
       width: SIZE,
       height: SIZE,
-      background: PAPER,
+      // Transparent: the rounded paper sheet drawn below is the real edge,
+      // so the wooden frame shows through the corners.
+      backgroundAlpha: 0,
       antialias: true,
       // The canvas can be displayed at up to ~2x its 820px logical size, and
       // each CSS pixel is devicePixelRatio device pixels: render with enough
@@ -257,12 +259,17 @@ export class BoardView {
     sheet.roundRect(0, 0, SIZE, SIZE, 10).fill(PAPER);
     this.staticLayer.addChild(sheet);
 
-    // Laid lines: chain lines every 4px, wire lines every 5px.
+    // Laid lines: chain lines every 4px, wire lines every 5px — masked to
+    // the sheet so they never paint outside the rounded corners.
     const grain = new Graphics();
     for (let y = 0; y < SIZE; y += 4) grain.rect(0, y, SIZE, 1);
     grain.fill({ color: 0x785f3c, alpha: 0.05 });
     for (let x = 0; x < SIZE; x += 5) grain.rect(x, 0, 1, SIZE);
     grain.fill({ color: 0x785f3c, alpha: 0.035 });
+    const grainMask = new Graphics();
+    grainMask.roundRect(0, 0, SIZE, SIZE, 10).fill(0xffffff);
+    this.staticLayer.addChild(grainMask);
+    grain.mask = grainMask;
     this.staticLayer.addChild(grain);
 
     const sheen = new Graphics();
@@ -335,19 +342,23 @@ export class BoardView {
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       const ux = (b.x - a.x) / len;
       const uy = (b.y - a.y) / len;
-      const ax = a.x - ux * 0.32 * CELL;
-      const ay = a.y - uy * 0.32 * CELL;
       const bx = b.x + ux * 0.1 * CELL;
       const by = b.y + uy * 0.1 * CELL;
+      // The dug earth starts beneath the corner space itself (drawn later,
+      // on top), so the tunnel visibly connects to its entrance tile.
+      const c0 = trackPos(SPAWN_INDEX(p));
+      const layer = (dy: number, color: number, alpha: number, width: number) => {
+        tunnel
+          .moveTo(c0.x, c0.y + dy)
+          .lineTo(a.x, a.y + dy)
+          .lineTo(bx, by + dy)
+          .stroke({ color, alpha, width, cap: 'round', join: 'round' });
+      };
       const tunnel = new Graphics();
-      tunnel.moveTo(ax, ay + 2).lineTo(bx, by + 2)
-        .stroke({ color: EARTH_DARK, alpha: 0.28, width: 1.1 * CELL, cap: 'round' });
-      tunnel.moveTo(ax, ay).lineTo(bx, by)
-        .stroke({ color: EARTH, width: 0.96 * CELL, cap: 'round' });
-      tunnel.moveTo(ax, ay).lineTo(bx, by)
-        .stroke({ color: EARTH_DARK, alpha: 0.35, width: 0.96 * CELL - 5, cap: 'round' });
-      tunnel.moveTo(ax, ay).lineTo(bx, by)
-        .stroke({ color: EARTH, width: 0.96 * CELL - 8, cap: 'round' });
+      layer(2, EARTH_DARK, 0.28, 1.1 * CELL);
+      layer(0, EARTH, 1, 0.96 * CELL);
+      layer(0, EARTH_DARK, 0.35, 0.96 * CELL - 5);
+      layer(0, EARTH, 1, 0.96 * CELL - 8);
       this.staticLayer.addChild(tunnel);
 
       for (let slot = 0; slot < 4; slot++) {
