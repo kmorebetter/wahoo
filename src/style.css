@@ -418,7 +418,7 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* hand of cards */
-#hand { display: flex; gap: 9px; flex-wrap: wrap; min-height: 128px; padding: 10px 0 2px; align-items: flex-end; }
+#hand { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; min-height: 128px; padding: 10px 0 2px; align-items: flex-end; }
 .card {
   position: relative; width: 84px; height: 120px; border-radius: 8px; padding: 0; overflow: hidden;
   background-color: var(--card); background-image: radial-gradient(90% 70% at 30% 15%, #fffdf7, #f4e9d4);
