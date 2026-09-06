@@ -669,6 +669,14 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
 }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* ------- dialogs ------- */
+.dialog-overlay {
+  position: fixed; inset: 0; z-index: 40; display: flex; align-items: center;
+  justify-content: center; background: rgba(15, 32, 26, 0.55); padding: 20px;
+}
+.dialog-card { max-width: 380px; width: 100%; padding: 22px 24px; }
+.dialog-card p { margin: 0 0 6px; font-size: 15px; line-height: 1.5; }
+
 /* ------- first-game tour ------- */
 #tour-dim {
   position: fixed; inset: 0; z-index: 28; background: rgba(15, 32, 26, 0.55);

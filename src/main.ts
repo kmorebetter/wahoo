@@ -12,6 +12,7 @@ import {
   describeRules, initHouseRules, readRules, renderModalHouseRules, savedRules,
 } from './ui/rules-controls.ts';
 import { installKeyboard } from './ui/keyboard.ts';
+import { confirmDialog, notice } from './ui/dialog.ts';
 import { App } from './ui/app.ts';
 import type { NetSession } from './ui/app.ts';
 import type { RoomInfo } from './net/protocol.ts';
@@ -118,15 +119,17 @@ function netHandlers(getSession: () => NetSession): OnlineHandlers {
     onEmote: (seat, emoji) => app.showEmote(seat, emoji),
     onError: msg => {
       setNetPending(null);
-      alert(msg);
+      void notice(msg);
     },
     onClose: () => {
-      if (lastGuestCode && confirm('Disconnected from the game. Try to rejoin?')) {
-        joinP2P(lastGuestCode);
-        return;
-      }
-      alert('Disconnected from the game.');
-      app.showMenu();
+      void (async () => {
+        if (lastGuestCode && (await confirmDialog('Disconnected from the game. Try to rejoin?', 'Rejoin', 'Menu'))) {
+          joinP2P(lastGuestCode);
+          return;
+        }
+        await notice('Disconnected from the game.');
+        app.showMenu();
+      })();
     },
   };
 }
@@ -194,7 +197,7 @@ $('#p2p-host').onclick = () => {
 };
 $('#p2p-join').onclick = () => {
   const code = ($('#p2p-code') as HTMLInputElement).value.trim().toUpperCase();
-  if (!code) return alert('Enter a room code.');
+  if (!code) return void notice('Enter a room code.');
   joinP2P(code);
 };
 
@@ -256,7 +259,7 @@ $('#p2p-resume').onclick = () => {
 $('#online-create').onclick = () => connectOnline(s => s.create(playerName(), clientToken()));
 $('#online-join').onclick = () => {
   const code = ($('#online-code') as HTMLInputElement).value.trim().toUpperCase();
-  if (!code) return alert('Enter a room code.');
+  if (!code) return void notice('Enter a room code.');
   connectOnline(s => s.join(code, playerName(), clientToken()));
 };
 
