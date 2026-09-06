@@ -217,6 +217,8 @@ export class BoardView {
       // so the wooden frame shows through the corners.
       backgroundAlpha: 0,
       antialias: true,
+      // A board game never needs the discrete GPU: prefer the efficient one.
+      powerPreference: 'low-power',
       // The canvas can be displayed at up to ~2x its 820px logical size, and
       // each CSS pixel is devicePixelRatio device pixels: render with enough
       // backing store for both so nothing looks pixelated on big or high-DPI
@@ -235,8 +237,20 @@ export class BoardView {
       this.staticLayer, this.highlightLayer, this.labelLayer, this.pieceLayer, this.focusLayer,
     );
     this.drawStatic();
+    // The printed board never changes: render it once into a texture so
+    // animation frames redraw a single quad instead of hundreds of shapes.
+    this.staticLayer.cacheAsTexture(true);
+    // 120Hz displays gain nothing here; don't pay for the extra frames.
+    this.app.ticker.maxFPS = 60;
     // One stage-level tap handler: every tap snaps to the nearest legal
     // target, so touches don't need to land exactly on a piece or space.
+    // The layers themselves are event-inert — no per-shape hit testing.
+    for (const layer of [
+      this.staticLayer, this.highlightLayer, this.labelLayer, this.pieceLayer, this.focusLayer,
+    ]) {
+      layer.eventMode = 'none';
+      layer.interactiveChildren = false;
+    }
     this.app.stage.eventMode = 'static';
     this.app.stage.hitArea = this.app.screen;
     this.app.stage.on('pointertap', e => {
@@ -480,7 +494,8 @@ export class BoardView {
     });
     eyebrow.anchor.set(0.5);
     eyebrow.position.set(cx + 2.5, cy + 44); // +half a letter-space: trailing gap
-    this.staticLayer.addChild(eyebrow);
+    // Lives with the labels, not the cached static layer: it changes per round.
+    this.labelLayer.addChild(eyebrow);
     this.roundLabel = eyebrow;
   }
 
