@@ -347,9 +347,10 @@ export class BoardView {
       const uy = (b.y - a.y) / len;
       const bx = b.x + ux * 0.1 * CELL;
       const by = b.y + uy * 0.1 * CELL;
-      // The dug earth starts beneath the corner space itself (drawn later,
-      // on top), so the tunnel visibly connects to its entrance tile.
-      const c0 = trackPos(SPAWN_INDEX(p));
+      // The dug earth starts beneath the last track space before the burrow
+      // (one step counter-clockwise from the corner; the tiles are drawn
+      // later, on top), showing the path a bunny takes to get inside.
+      const c0 = trackPos((SPAWN_INDEX(p) + TRACK_LEN - 1) % TRACK_LEN);
       const layer = (dy: number, color: number, alpha: number, width: number) => {
         tunnel
           .moveTo(c0.x, c0.y + dy)
