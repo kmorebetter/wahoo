@@ -612,6 +612,7 @@ export class BoardView {
   }
 
   cycleFocus(dir: 1 | -1) {
+    this.wake();
     const c = this.candidates();
     if (c.length === 0) return;
     this.focusIdx =
@@ -633,6 +634,7 @@ export class BoardView {
   }
 
   clearFocus() {
+    this.wake();
     this.focusIdx = -1;
     this.focusLayer.removeChildren().forEach(ch => ch.destroy());
   }
@@ -643,12 +645,21 @@ export class BoardView {
     return reservePos(bunny.player, reserveOrder);
   }
 
+  private idleFrames = 0;
+
+  /** Restart rendering after an idle stop (any visual change calls this). */
+  private wake() {
+    this.idleFrames = 0;
+    if (!this.app.ticker.started) this.app.ticker.start();
+  }
+
   private pulse: { seat: number; started: number } | null = null;
   private pulseLayer = new Container();
   private pulseG: Graphics | null = null;
 
   /** A brief expanding ring at a seat's corner: "it's this player's turn". */
   pulseSeat(seat: number) {
+    this.wake();
     this.pulse = { seat, started: performance.now() };
     if (!this.pulseG) {
       // Its own layer: the focus layer is cleared on every render.
@@ -721,6 +732,7 @@ export class BoardView {
   }
 
   render(view: View, hi: Highlights, effects?: MoveEffect[]) {
+    this.wake();
     this.lastHi = hi;
     this.clearFocus(); // targets changed; stale keyboard focus would mislead
     const effectFor = effects && new Map(effects.map(e => [e.bunny, e]));
@@ -842,6 +854,25 @@ export class BoardView {
 
   /** dt is in 60fps-normalized frames, so motion speed is frame-rate independent. */
   private animate(dt: number) {
+    // Idle detection: when nothing is moving, stop the ticker entirely so an
+    // open-but-quiet game costs no battery. Any visual change calls wake().
+    let busy = this.pulse !== null;
+    for (const piece of this.pieces.values()) {
+      if (
+        piece.path !== null ||
+        Math.abs(piece.tx - piece.root.x) > 0.05 ||
+        Math.abs(piece.ty - piece.root.y) > 0.05
+      ) {
+        busy = true;
+        break;
+      }
+    }
+    if (busy) {
+      this.idleFrames = 0;
+    } else if (++this.idleFrames > 30) {
+      this.app.ticker.stop();
+      return;
+    }
     if (this.pulse && this.pulseG) {
       const t = (performance.now() - this.pulse.started) / 1100;
       this.pulseG.clear();
