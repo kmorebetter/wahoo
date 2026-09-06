@@ -360,6 +360,14 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
     width: clamp(300px, calc(100dvh - 96px), min(100%, 1600px));
   }
 }
+@media (max-height: 520px) and (min-width: 640px) {
+  /* Landscape phones: the board fits the height, the panel sits beside it. */
+  #board-wrap { flex-basis: 260px; }
+  .board-canvas {
+    width: clamp(220px, calc(100vh - 120px), 100%);
+    width: clamp(220px, calc(100dvh - 120px), 100%);
+  }
+}
 @media (max-width: 600px) {
   #app { padding: 8px; }
   #game { gap: 12px; }
