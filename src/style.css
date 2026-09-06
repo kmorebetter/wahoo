@@ -383,6 +383,10 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
 }
 
 #side { flex: 1 1 300px; min-width: 280px; max-width: 420px; display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 850px) {
+  /* Wrapped below the board: use the whole width, not a 420px column. */
+  #side { max-width: none; }
+}
 
 #status {
   padding: 16px 18px; border-left: 6px solid var(--red-rule); border-radius: 10px;
