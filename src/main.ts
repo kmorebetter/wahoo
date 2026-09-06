@@ -7,6 +7,11 @@ import '@fontsource/nunito-sans/600.css';
 import '@fontsource/nunito-sans/700.css';
 import './style.css';
 import { $, esc } from './ui/dom.ts';
+import { buildSeatConfig, readSeatKinds, readSeatNames } from './ui/seat-config.ts';
+import {
+  describeRules, initHouseRules, readRules, renderModalHouseRules, savedRules,
+} from './ui/rules-controls.ts';
+import { installKeyboard } from './ui/keyboard.ts';
 import { App } from './ui/app.ts';
 import type { NetSession } from './ui/app.ts';
 import type { RoomInfo } from './net/protocol.ts';
@@ -17,8 +22,7 @@ import { OnlineSession } from './net/client.ts';
 import { HttpSession } from './net/http.ts';
 import type { OnlineHandlers } from './net/client.ts';
 import { P2PGuestSession, P2PHostSession, savedHostGame } from './net/p2p.ts';
-import type { Difficulty, HouseRules } from './engine/types.ts';
-import { DEFAULT_RULES } from './engine/types.ts';
+import type { Difficulty } from './engine/types.ts';
 import { EMOTES } from './net/protocol.ts';
 import { EMOTE_LABELS, emoteHtml } from './ui/emotes.ts';
 import { PLAYER_COLORS_CSS } from './ui/palette.ts';
@@ -32,140 +36,19 @@ import { maybeStartTour } from './ui/tour.ts';
 
 const app = new App();
 
-function savedSeatNames(): string[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem('wahoo-local-names') ?? '[]');
-    return [0, 1, 2, 3].map(i => (typeof raw[i] === 'string' ? raw[i] : PLAYER_NAMES[i]));
-  } catch {
-    return [...PLAYER_NAMES];
-  }
-}
-
-function buildSeatConfig() {
-  const wrap = $('#seat-config');
-  wrap.innerHTML = '';
-  const defaults: SeatKind[] = ['human', 'cpu-medium', 'cpu-medium', 'cpu-medium'];
-  const names = savedSeatNames();
-  const kinds: [SeatKind, string][] = [
-    ['human', 'Human'],
-    ['cpu-easy', 'Easy'],
-    ['cpu-medium', 'Medium'],
-    ['cpu-hard', 'Hard'],
-    ['cpu-insane', 'Insane'],
-  ];
-  // Rows are listed by team (partners sit at opposite corners): Red & Green,
-  // then Blue & Yellow, with a solid rule between the two teams.
-  for (const i of [0, 2, 1, 3]) {
-    const row = document.createElement('div');
-    row.className = 'seat-row' + (i === 2 ? ' team-break' : '');
-    row.innerHTML =
-      `<span class="seat-bunny" aria-hidden="true">${emoteHtml('plain', PLAYER_COLORS_CSS[i])}</span>` +
-      `<span class="seat-color">${PLAYER_NAMES[i]}</span>` +
-      `<span class="seat-label" data-label-seat="${i}">CPU ${PLAYER_NAMES[i]}</span>` +
-      `<input class="seat-name" data-name-seat="${i}" maxlength="12" value="${esc(names[i])}"` +
-      ` aria-label="${PLAYER_NAMES[i]} player name" />` +
-      `<select data-seat="${i}" aria-label="${PLAYER_NAMES[i]} seat">` +
-      kinds
-        .map(([v, label]) => `<option value="${v}"${defaults[i] === v ? ' selected' : ''}>${label}</option>`)
-        .join('') +
-      `</select>`;
-    wrap.appendChild(row);
-    // Humans get a name field; CPU seats just show the colour label.
-    const sel = row.querySelector('select')!;
-    const sync = () => {
-      const human = sel.value === 'human';
-      (row.querySelector('.seat-name') as HTMLElement).hidden = !human;
-      (row.querySelector('.seat-label') as HTMLElement).hidden = human;
-    };
-    sel.addEventListener('change', sync);
-    row.querySelector('.seat-name')!.addEventListener('change', () => {
-      localStorage.setItem('wahoo-local-names', JSON.stringify(readSeatNames()));
-    });
-    sync();
-  }
-}
-
-function readSeatNames(): string[] {
-  const names = [...PLAYER_NAMES];
-  for (const el of document.querySelectorAll<HTMLInputElement>('#seat-config .seat-name')) {
-    const i = Number(el.dataset.nameSeat);
-    names[i] = el.value.trim() || PLAYER_NAMES[i];
-  }
-  return names;
-}
 buildSeatConfig();
 
-// ---- House rules controls (shared between the local menu and the lobby) ----
-
-function savedRules(): HouseRules {
-  try {
-    return { ...DEFAULT_RULES, ...JSON.parse(localStorage.getItem('wahoo-rules') ?? '{}') };
-  } catch {
-    return { ...DEFAULT_RULES };
+// House rules card: persist every change and, when hosting a lobby,
+// publish it so guests see the rules live.
+initHouseRules(rules => {
+  const session = pendingOnline ?? app.session;
+  if (app.roomInfo?.youAreHost && !app.roomInfo.started && session && 'setRules' in session) {
+    session.setRules(rules);
   }
-}
-
-function describeRules(r: HouseRules): string {
-  const seven = { 1: '7 moves one bunny', 2: '7 splits up to two bunnies', 4: '7 splits freely' }[
-    r.sevenMaxBunnies
-  ];
-  return [
-    r.friendlyFire ? 'teammate stomping allowed' : 'no teammate stomping',
-    seven,
-    r.burrowJump ? 'burrow jumping allowed' : 'no burrow jumping',
-    r.finger === false ? 'no finger reaction' : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-function rulesControlsHtml(): string {
-  const r = savedRules();
-  return (
-    `<label class="rule-row"><input type="checkbox" id="hr-ff" ${r.friendlyFire ? 'checked' : ''}/>` +
-    `<span>Kings and landings can stomp teammates</span></label>` +
-    `<label class="rule-row"><span>The 7</span><select id="hr-seven">` +
-    `<option value="1" ${r.sevenMaxBunnies === 1 ? 'selected' : ''}>one bunny only</option>` +
-    `<option value="2" ${r.sevenMaxBunnies === 2 ? 'selected' : ''}>up to two bunnies</option>` +
-    `<option value="4" ${r.sevenMaxBunnies === 4 ? 'selected' : ''}>any split</option>` +
-    `</select></label>` +
-    `<label class="rule-row"><input type="checkbox" id="hr-jump" ${r.burrowJump ? 'checked' : ''}/>` +
-    `<span>Bunnies may jump over occupied burrow slots</span></label>` +
-    `<label class="rule-row"><input type="checkbox" id="hr-finger" ${r.finger !== false ? 'checked' : ''}/>` +
-    `<span>Allow the finger reaction</span></label>`
-  );
-}
-
-function readRules(): HouseRules {
-  const rules: HouseRules = {
-    friendlyFire: ($('#hr-ff') as HTMLInputElement).checked,
-    sevenMaxBunnies: Number(($('#hr-seven') as HTMLSelectElement).value) as 1 | 2 | 4,
-    burrowJump: ($('#hr-jump') as HTMLInputElement).checked,
-    finger: ($('#hr-finger') as HTMLInputElement).checked,
-  };
-  localStorage.setItem('wahoo-rules', JSON.stringify(rules));
-  return rules;
-}
-
-$('#house-rules-body').innerHTML = rulesControlsHtml();
-$('#house-rules-body')
-  .querySelectorAll('input, select')
-  .forEach(el =>
-    el.addEventListener('change', () => {
-      const rules = readRules(); // persist immediately
-      // Hosting a lobby: publish the change so guests see the rules live.
-      const session = pendingOnline ?? app.session;
-      if (app.roomInfo?.youAreHost && !app.roomInfo.started && session && 'setRules' in session) {
-        session.setRules(rules);
-      }
-    }),
-  );
+});
 
 $('#start-local').onclick = async () => {
-  const seats: SeatKind[] = ['cpu-medium', 'cpu-medium', 'cpu-medium', 'cpu-medium'];
-  for (const sel of document.querySelectorAll<HTMLSelectElement>('#seat-config select')) {
-    seats[Number(sel.dataset.seat)] = sel.value as SeatKind;
-  }
+  const seats = readSeatKinds();
   app.startLocalMeta(seats.filter(s => s === 'human').length);
   await app.showGame();
   const session = new LocalSession(
@@ -513,14 +396,6 @@ $('#btn-menu').onclick = () => {
   pendingOnline = null;
   app.showMenu();
 };
-window.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  if (!$('#rules-modal').hidden) {
-    $('#rules-modal').hidden = true;
-    return;
-  }
-  app.cancelSelection();
-});
 
 function refreshMuteButton() {
   $('#btn-mute').textContent = isMuted() ? 'Muted' : 'Sound';
@@ -533,19 +408,9 @@ $('#btn-mute').onclick = () => {
 
 $('#victory-menu').onclick = () => ($('#btn-menu') as HTMLButtonElement).click();
 
-/** The in-game modal shows the rules THIS game is using (guests see the host's). */
-function renderModalHouseRules() {
-  const r = app.view?.rules ?? savedRules();
-  const seven = { 1: 'one bunny only', 2: 'may split across two bunnies', 4: 'may split freely' };
-  $('#rules-modal-house').innerHTML =
-    `<li>Stomping teammates: <b>${r.friendlyFire ? 'allowed' : 'not allowed'}</b></li>` +
-    `<li>The 7: <b>${seven[r.sevenMaxBunnies]}</b></li>` +
-    `<li>Jumping over occupied burrow slots: <b>${r.burrowJump ? 'allowed' : 'not allowed'}</b></li>` +
-    `<li>The finger reaction: <b>${r.finger !== false ? 'allowed' : 'banned at this table'}</b></li>`;
-}
-
 $('#btn-rules').onclick = () => {
-  renderModalHouseRules();
+  // The modal shows the rules THIS game is using (guests see the host's).
+  renderModalHouseRules(app.view?.rules ?? savedRules());
   $('#rules-modal').hidden = false;
 };
 $('#rules-close').onclick = () => {
@@ -613,41 +478,7 @@ $('#btn-again').onclick = () => {
   }
 }
 
-// Keyboard play: 1-4 pick a card, arrows cycle board targets, Enter moves,
-// Escape cancels, F folds.
-document.addEventListener('keydown', e => {
-  if (!$('#rules-modal').hidden) {
-    if (e.key === 'Escape') $('#rules-modal').hidden = true;
-    return;
-  }
-  if ($('#game').hidden) return;
-  const t = e.target;
-  if (
-    t instanceof HTMLInputElement ||
-    t instanceof HTMLTextAreaElement ||
-    t instanceof HTMLSelectElement
-  ) {
-    return;
-  }
-  if (e.key >= '1' && e.key <= '4') {
-    const cards = document.querySelectorAll<HTMLButtonElement>('#hand .card');
-    cards[Number(e.key) - 1]?.click();
-  } else if (e.key === 'Escape') {
-    app.cancelSelection();
-  } else if (e.key.toLowerCase() === 'f') {
-    const fold = $('#btn-fold') as HTMLButtonElement;
-    if (!fold.hidden) fold.click();
-  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-    app.board.cycleFocus(-1);
-    e.preventDefault();
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-    app.board.cycleFocus(1);
-    e.preventDefault();
-  } else if (e.key === 'Enter' && app.board.hasFocus()) {
-    app.board.activateFocus();
-    e.preventDefault();
-  }
-});
+installKeyboard(app);
 
 // Offline/installable support (skipped during local development).
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
