@@ -306,7 +306,17 @@ function looksLikeGameState(mixed $state): bool
         return false;
     }
     foreach ($log as $line) {
-        if (!is_string($line) || strlen($line) > 400) {
+        // Structured events (small objects) from current clients, or plain
+        // strings from older ones — either way, tightly bounded.
+        if (is_string($line)) {
+            if (strlen($line) > 400) {
+                return false;
+            }
+        } elseif (is_array($line)) {
+            if (strlen(json_encode($line)) > 200) {
+                return false;
+            }
+        } else {
             return false;
         }
     }

@@ -1,3 +1,4 @@
+import { formatLog } from '../engine/log.ts';
 import type { Bunny, Card, Difficulty, GameState, HouseRules, Move, MoveEffect } from '../engine/types.ts';
 import { legalMoves } from '../engine/game.ts';
 
@@ -48,7 +49,7 @@ export function makeView(
     drawCount: state.drawPile.length,
     discardTop: state.discard.length ? { ...state.discard[state.discard.length - 1] } : null,
     winner: state.winner,
-    log: state.log.slice(-40),
+    log: state.log.slice(-40).map(formatLog),
     canAct: canAct && state.winner === null,
     legal: canAct && state.winner === null ? structuredClone(legalMoves(state)) : [],
     seatNames,

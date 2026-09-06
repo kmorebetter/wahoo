@@ -62,7 +62,7 @@ export interface GameState {
   turn: number;
   winner: number | null; // team 0 (seats 0&2) or 1 (seats 1&3)
   rng: number; // mulberry32 state, used for reshuffles
-  log: string[];
+  log: import('./log.ts').LogEvent[];
   /** Bunny movements caused by the most recently applied move. */
   effects: MoveEffect[];
   /** The most recent play (bonus = flipped by a 2; fold = discarded hand). */
