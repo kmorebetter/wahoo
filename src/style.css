@@ -502,7 +502,21 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-rule); outli
 #controls-bottom { margin-top: auto; }
 
 /* emotes */
-#emote-bar { border-radius: 10px; padding: 14px 16px; background: var(--dark-box); border: 1px solid var(--dark-border); }
+#emote-bar {
+  border-radius: 10px; padding: 14px 16px; background: var(--dark-box);
+  border: 1px solid var(--dark-border); position: relative; overflow: hidden;
+}
+/* While a reaction plays, a thin gold line drains along the bottom: the bar
+   reopens when it empties. */
+#emote-bar.cooling button[data-emote] { opacity: 0.45; }
+#emote-bar.cooling::after {
+  content: ''; position: absolute; left: 0; bottom: 0; height: 3px;
+  background: var(--gold); animation: emote-cooldown 4.2s linear forwards;
+}
+@keyframes emote-cooldown {
+  from { width: 100%; }
+  to { width: 0; }
+}
 #emote-bar .eyebrow { display: block; color: var(--lit-faint); letter-spacing: 0.28em; font-size: 10px; margin-bottom: 8px; }
 #emote-bar .emotes { display: flex; gap: 8px; }
 #emote-bar .emotes button { flex: 1; padding: 5px 0 1px; font-size: 20px; line-height: 0; }

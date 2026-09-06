@@ -102,6 +102,7 @@ export class App {
     if (seat < 0 || seat > 3) return;
     if (this.emoteBusy) return; // wait for the current reaction to finish
     this.emoteBusy = true;
+    $('#emote-bar').classList.add('cooling');
     const bubble = document.createElement('span');
     bubble.className = `emote-bubble seat-${seat}`;
     bubble.innerHTML = emoteHtml(emoji, PLAYER_COLORS_CSS[seat]);
@@ -113,6 +114,7 @@ export class App {
     setTimeout(() => {
       bubble.remove();
       this.emoteBusy = false;
+      $('#emote-bar').classList.remove('cooling');
       document
         .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
         .forEach(b => (b.disabled = false));
