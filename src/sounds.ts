@@ -94,6 +94,35 @@ export function playEmoteSound(id = ''): void {
 
 let popCtx: AudioContext | null = null;
 
+/** A soft two-note ding when the device should change hands (hot seat). */
+export function playTurnChime(): void {
+  if (muted) return;
+  try {
+    type AudioCtor = typeof AudioContext;
+    const Ctor: AudioCtor | undefined =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
+    if (!Ctor) return;
+    popCtx ??= new Ctor();
+    const ctx = popCtx;
+    const t0 = ctx.currentTime;
+    for (const [at, freq] of [[0, 659], [0.14, 784]] as const) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0 + at);
+      gain.gain.setValueAtTime(0.001, t0 + at);
+      gain.gain.exponentialRampToValueAtTime(0.12, t0 + at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + at + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0 + at);
+      osc.stop(t0 + at + 0.4);
+    }
+  } catch {
+    /* audio may be blocked before the first gesture */
+  }
+}
+
 export function playMoveSound(effects: MoveEffect[]): void {
   if (muted) return;
   const reachedHome = effects.some(

@@ -17,7 +17,7 @@ import type { RoomInfo, View } from '../net/protocol.ts';
 import { backwardDest, forwardDest } from '../engine/game.ts';
 import type { Bunny, CardAction, Move, MoveEffect } from '../engine/types.ts';
 import { PLAYER_NAMES, SPAWN_INDEX } from '../engine/types.ts';
-import { playEmoteSound, playMoveSound } from '../sounds.ts';
+import { playEmoteSound, playMoveSound, playTurnChime } from '../sounds.ts';
 import { TIPS, dismissTip, showTip, tipSeen } from './tips.ts';
 import { emoteHtml } from './emotes.ts';
 
@@ -182,9 +182,12 @@ export class App {
     }
     // A new decision point invalidates any in-progress selection.
     this.sel = emptySelection();
-    // Hot-seat privacy: hide the hand while the device changes hands.
+    // Hot-seat privacy: hide the hand while the device changes hands, with
+    // a chime and a corner pulse so the next player looks up.
     if (!this.online && view.canAct && this.localHumans > 1 && view.mySeat !== this.lastHumanSeat) {
       this.curtain = true;
+      playTurnChime();
+      if (view.mySeat !== null) this.board.pulseSeat(view.mySeat);
     }
     if (view.canAct) this.lastHumanSeat = view.mySeat;
     if (view.pendingFlip && view.canAct) this.sel.cardId = 'flip';

@@ -642,6 +642,18 @@ export class BoardView {
     return reservePos(bunny.player, reserveOrder);
   }
 
+  private pulse: { seat: number; started: number } | null = null;
+  private pulseG: Graphics | null = null;
+
+  /** A brief expanding ring at a seat's corner: "it's this player's turn". */
+  pulseSeat(seat: number) {
+    this.pulse = { seat, started: performance.now() };
+    if (!this.pulseG) {
+      this.pulseG = new Graphics();
+      this.focusLayer.addChild(this.pulseG);
+    }
+  }
+
   /** Live display position of a bunny's token (logical 820-space), if drawn. */
   piecePos(id: number): { x: number; y: number } | null {
     const piece = this.pieces.get(id);
@@ -826,6 +838,24 @@ export class BoardView {
 
   /** dt is in 60fps-normalized frames, so motion speed is frame-rate independent. */
   private animate(dt: number) {
+    if (this.pulse && this.pulseG) {
+      const t = (performance.now() - this.pulse.started) / 1100;
+      this.pulseG.clear();
+      if (t >= 1) {
+        this.pulse = null;
+      } else {
+        const { x, y } = trackPos(SPAWN_INDEX(this.pulse.seat));
+        // Two rings chasing each other outward, fading as they go.
+        for (const lag of [0, 0.25]) {
+          const k = t - lag;
+          if (k < 0 || k > 0.75) continue;
+          const r = CORNER_R + (k / 0.75) * 1.6 * CELL;
+          this.pulseG
+            .circle(x, y, r)
+            .stroke({ color: GOLD, alpha: 0.7 * (1 - k / 0.75), width: 4 });
+        }
+      }
+    }
     const dtMs = dt * (1000 / 60);
     const ease = 1 - Math.pow(0.9, dt);
     const easeInOut = (t: number) =>
