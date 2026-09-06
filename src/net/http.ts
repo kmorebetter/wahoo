@@ -12,6 +12,8 @@ import type { OnlineHandlers } from './client.ts';
 
 const POLL_MS = 1200;
 const CPU_DELAY_MS = 4000;
+/** Test override, mirroring the local/WS sessions. */
+const cpuDelayMs = () => window.__wahooCpuDelay ?? CPU_DELAY_MS;
 
 interface Snapshot {
   code: string;
@@ -162,10 +164,34 @@ export class HttpSession {
     }
   }
 
+  private cpuTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * When a CPU is to act, fire locally once its thinking pause elapses —
+   * long polls hold until something changes, and the CPU's move IS the
+   * change, so waiting for a poll would stall the game.
+   */
+  private scheduleCpu(d: Snapshot) {
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
+    this.cpuTimer = null;
+    const game = d.game;
+    if (!game || game.winner !== null) return;
+    const seat = d.seats[game.current];
+    if (seat && !seat.cpu) return;
+    // A little jitter so several clients rarely race (the version check on
+    // the POST settles it harmlessly when they do).
+    const wait = Math.max(0, cpuDelayMs() - d.ageMs) + Math.random() * 400;
+    this.cpuTimer = setTimeout(() => {
+      if (this.closed || !this.last) return;
+      void this.maybePlayCpu({ ...this.last, ageMs: Math.max(this.last.ageMs, cpuDelayMs()) });
+    }, wait);
+  }
+
   private accept(d: Snapshot) {
     const changed = d.version !== this.version;
     this.version = d.version;
     this.last = d;
+    this.scheduleCpu(d);
     if (!changed || this.closed) return;
     this.handlers.onRoom({
       code: d.code,
@@ -193,7 +219,7 @@ export class HttpSession {
     if (!game || game.winner !== null) return;
     const seat = d.seats[game.current];
     if (seat && !seat.cpu) return;
-    if (d.ageMs < CPU_DELAY_MS) return;
+    if (d.ageMs < cpuDelayMs()) return;
     const sim = cloneState(game);
     try {
       applyMove(sim, chooseMove(sim, (seat?.difficulty as Difficulty) ?? 'medium'));
@@ -296,6 +322,7 @@ export class HttpSession {
   leave() {
     this.closed = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.cpuTimer) clearTimeout(this.cpuTimer);
     if (this.code && this.clientId) {
       void fetch(`${this.base}/api/rooms/${this.code}/leave`, {
         method: 'POST',
