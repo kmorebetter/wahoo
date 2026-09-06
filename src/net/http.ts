@@ -109,9 +109,12 @@ export class HttpSession {
   private async poll() {
     if (this.closed || !this.code || this.busy) return;
     this.busy = true;
+    const started = Date.now();
     try {
+      // wait=1 asks a new server to hold the request until something changes
+      // (a long poll); an old server ignores it and answers immediately.
       const d = await this.api<Snapshot | Heartbeat>(
-        `/api/rooms/${this.code}?since=${this.version}`,
+        `/api/rooms/${this.code}?since=${this.version}&emoteN=${this.lastEmoteN}&wait=1`,
       );
       this.missedPolls = 0;
       this.acceptEmote(d);
@@ -139,6 +142,10 @@ export class HttpSession {
       }
     } finally {
       this.busy = false;
+      // A response that took a while means the server held it (long poll):
+      // chain the next one immediately. Fast responses mean an old server —
+      // let the interval pace us so we don't hammer it.
+      if (!this.closed && Date.now() - started > 2000) void this.poll();
     }
   }
 

@@ -22,7 +22,8 @@ test.describe('PHP relay server', () => {
     php = spawn('php', ['-S', `127.0.0.1:${PHP_PORT}`, 'index.php'], {
       cwd: 'server/wahoo-php',
       stdio: 'ignore',
-      env: { ...process.env, WAHOO_DB: db },
+      // Long polls hold a worker each: the built-in server needs several.
+      env: { ...process.env, WAHOO_DB: db, PHP_CLI_SERVER_WORKERS: '6' },
     });
     // Wait for the server to accept requests.
     for (let i = 0; i < 40; i++) {

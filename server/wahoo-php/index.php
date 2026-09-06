@@ -553,8 +553,31 @@ $app->get('/api/rooms/{code}', function (Request $request, Response $response, a
         $room = loadRoom($pdo, $args['code']);
     }
     // Unchanged since the client's version: send a tiny heartbeat instead of
-    // the full snapshot (~95% less polling traffic while idle).
-    $since = $request->getQueryParams()['since'] ?? null;
+    // the full snapshot (~95% less polling traffic while idle). With wait=1
+    // the request is held (a long poll) until a change or ~10s pass, so moves
+    // reach other players almost immediately.
+    $q = $request->getQueryParams();
+    $since = $q['since'] ?? null;
+    if (
+        $since !== null && (int) $since === (int) $room['version']
+        && ($q['wait'] ?? '') === '1'
+    ) {
+        $clientEmoteN = isset($q['emoteN']) ? (int) $q['emoteN'] : -1;
+        $deadline = microtime(true) + 10;
+        while (microtime(true) < $deadline) {
+            usleep(300000);
+            $room = loadRoom($pdo, $args['code']);
+            if ($room === null) {
+                return errorResponse($response, 'Room not found.', 404);
+            }
+            if ((int) $room['version'] !== (int) $since) {
+                break;
+            }
+            if ($clientEmoteN >= 0 && (int) ($room['emote_n'] ?? 0) > $clientEmoteN) {
+                break;
+            }
+        }
+    }
     if ($since !== null && (int) $since === (int) $room['version']) {
         return jsonResponse($response, [
             'version' => (int) $room['version'],
