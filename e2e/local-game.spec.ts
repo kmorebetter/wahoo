@@ -14,6 +14,7 @@ test('menu renders and a local game starts cleanly', async ({ page }) => {
 });
 
 test('the game progresses through CPU turns', async ({ page }) => {
+  test.setTimeout(120_000); // 12 real turns of animated play take a while
   const errors = trackErrors(page);
   await startLocal(page);
   // Play up to 12 human decisions programmatically; CPUs respond on their own.
