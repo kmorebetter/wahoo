@@ -94,15 +94,29 @@ export class App {
   private lastHumanSeat: number | null = null;
   private curtain = false;
 
+  /** True while a reaction bubble is playing: one at a time at this table. */
+  emoteBusy = false;
+
   /** Float a reaction bubble over the seat's corner of the board. */
   showEmote(seat: number, emoji: string) {
     if (seat < 0 || seat > 3) return;
+    if (this.emoteBusy) return; // wait for the current reaction to finish
+    this.emoteBusy = true;
     const bubble = document.createElement('span');
     bubble.className = `emote-bubble seat-${seat}`;
     bubble.innerHTML = emoteHtml(emoji, PLAYER_COLORS_CSS[seat]);
     $('#board-wrap').appendChild(bubble);
     playEmoteSound(emoji);
-    setTimeout(() => bubble.remove(), 4200);
+    document
+      .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
+      .forEach(b => (b.disabled = true));
+    setTimeout(() => {
+      bubble.remove();
+      this.emoteBusy = false;
+      document
+        .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
+        .forEach(b => (b.disabled = false));
+    }, 4200);
   }
 
   startLocalMeta(humans: number) {
@@ -407,6 +421,7 @@ export class App {
       () => corner,
       `<span class="mini-card${isRed(c) ? ' red' : ''}">${esc(c.rank + c.suit)}</span>`,
       `${inked(view, view.current)} flipped a bonus card!`,
+      view.current,
     );
   }
 
@@ -429,6 +444,7 @@ export class App {
     const ptOf = mover
       ? () => this.board.piecePos(mover.bunny) ?? pt
       : () => pt;
+    const seat = play.seat;
     const who = inked(view, play.seat);
     const card = play.card;
     const cardHtml = play.fold || !card
@@ -437,34 +453,49 @@ export class App {
     const text = play.fold || !card
       ? `${who} folded — no playable cards.`
       : `${who} ${esc(play.desc || 'played')}${play.bonus ? ' <i>(bonus flip)</i>' : ''}`;
-    this.showCallout(ptOf, cardHtml, text);
+    this.showCallout(ptOf, cardHtml, text, seat);
   }
 
   private calloutTrack: number | null = null;
 
-  /** A speech bubble beside the action, its tail following `ptOf()` live. */
-  private showCallout(ptOf: () => { x: number; y: number }, cardHtml: string, text: string) {
+  /**
+   * A speech bubble in the acting player's quadrant of the board — kept off
+   * the track ring and burrows — its tail following `ptOf()` live.
+   */
+  private showCallout(
+    ptOf: () => { x: number; y: number },
+    cardHtml: string,
+    text: string,
+    seat: number,
+  ) {
     const el = $('#move-callout');
     el.innerHTML = `<div class="callout-box">${cardHtml}<span>${text}</span></div><div class="callout-tail"></div>`;
     el.hidden = false;
     el.classList.remove('show');
-    const centre = this.boardPoint({ x: 410, y: 410 });
-    const target = this.boardPoint(ptOf());
-    // Sit a short way from the action, on its boardward side, staying on
-    // the paper: the callout should feel attached to the move it describes.
-    const dist = Math.hypot(centre.x - target.x, centre.y - target.y);
-    const k = dist > 1 ? Math.min(160, Math.max(110, dist * 0.35)) / dist : 0;
-    const wrap = $('#board-wrap').getBoundingClientRect();
-    const canvas = $('#board-frame .board-canvas').getBoundingClientRect();
-    const minX = canvas.left - wrap.left + 130;
-    const maxX = canvas.right - wrap.left - 130;
-    const minY = canvas.top - wrap.top + 36;
-    const maxY = canvas.bottom - wrap.top - 36;
-    const bx = Math.max(minX, Math.min(target.x + (centre.x - target.x) * k, maxX));
-    const by = Math.max(minY, Math.min(target.y + (centre.y - target.y) * k, maxY));
+    // Board geometry in logical space: ring corners and the safe inner field
+    // (2.3 cells in from the ring clears the tiles and the burrow tunnels).
+    const tl = trackPos(SPAWN_INDEX(2));
+    const br = trackPos(SPAWN_INDEX(0));
+    const cell = (br.x - tl.x) / 20;
+    const corner = trackPos(SPAWN_INDEX(seat));
+    const mid = { x: (tl.x + br.x) / 2, y: (tl.y + br.y) / 2 };
+    const anchor = this.boardPoint({
+      x: corner.x + (mid.x - corner.x) * 0.34,
+      y: corner.y + (mid.y - corner.y) * 0.34,
+    });
+    const safeMin = this.boardPoint({ x: tl.x + 2.3 * cell, y: tl.y + 2.3 * cell });
+    const safeMax = this.boardPoint({ x: br.x - 2.3 * cell, y: br.y - 2.3 * cell });
+    const box = el.querySelector<HTMLElement>('.callout-box')!;
+    const bx = Math.max(
+      safeMin.x + box.offsetWidth / 2,
+      Math.min(anchor.x, safeMax.x - box.offsetWidth / 2),
+    );
+    const by = Math.max(
+      safeMin.y + box.offsetHeight / 2,
+      Math.min(anchor.y, safeMax.y - box.offsetHeight / 2),
+    );
     el.style.left = `${bx}px`;
     el.style.top = `${by}px`;
-    const box = el.querySelector<HTMLElement>('.callout-box')!;
     const tail = el.querySelector<HTMLElement>('.callout-tail')!;
     // The tail starts just past the box edge and stretches to the action —
     // re-aimed every frame so it follows the bunny mid-hop.

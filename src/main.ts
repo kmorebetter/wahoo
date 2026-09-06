@@ -571,6 +571,7 @@ $('#btn-fullscreen').onclick = () => {
     btn.title = EMOTE_LABELS[emoji] ?? emoji;
     btn.setAttribute('aria-label', `React: ${EMOTE_LABELS[emoji] ?? emoji}`);
     btn.onclick = () => {
+      if (app.emoteBusy) return; // one reaction at a time at the table
       const session = app.session;
       if (session && 'emote' in session) session.emote(emoji);
     };
