@@ -223,8 +223,7 @@ export class BoardView {
       // screens (capped at 4x = a 3280px backing store). Tests override this:
       // headless browsers software-render, where a big canvas eats the CPU.
       resolution:
-        (globalThis as { __wahooResolution?: number }).__wahooResolution ??
-        Math.min(4, 2 * (globalThis.devicePixelRatio || 1)),
+        window.__wahooResolution ?? Math.min(4, 2 * (globalThis.devicePixelRatio || 1)),
     });
     this.app.canvas.classList.add('board-canvas');
     // The canvas itself is opaque to assistive tech; give it a name and let

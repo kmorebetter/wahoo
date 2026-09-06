@@ -211,6 +211,9 @@ export class GameRoom {
     const seat = this.clients.get(id);
     this.clients.delete(id);
     this.tokens.delete(id);
+    for (const key of this.lastAction.keys()) {
+      if (key.startsWith(`${id}:`)) this.lastAction.delete(key);
+    }
     if (seat !== null && seat !== undefined && this.seats[seat]?.clientId === id) {
       if (this.game && this.game.winner === null) {
         // Keep the game going: a CPU takes over, but the token stays so the

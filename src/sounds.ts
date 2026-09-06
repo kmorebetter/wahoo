@@ -39,10 +39,7 @@ export function setMuted(value: boolean) {
 export function playEmoteSound(id = ''): void {
   if (muted) return;
   try {
-    type AudioCtor = typeof AudioContext;
-    const Ctor: AudioCtor | undefined =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
+    const Ctor = window.AudioContext ?? window.webkitAudioContext;
     if (!Ctor) return;
     popCtx ??= new Ctor();
     const ctx = popCtx;
@@ -98,10 +95,7 @@ let popCtx: AudioContext | null = null;
 export function playTurnChime(): void {
   if (muted) return;
   try {
-    type AudioCtor = typeof AudioContext;
-    const Ctor: AudioCtor | undefined =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
+    const Ctor = window.AudioContext ?? window.webkitAudioContext;
     if (!Ctor) return;
     popCtx ??= new Ctor();
     const ctx = popCtx;

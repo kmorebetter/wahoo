@@ -1,6 +1,5 @@
 import '@fontsource/fredoka/500.css';
 import '@fontsource/fredoka/600.css';
-import '@fontsource/fredoka/700.css';
 import '@fontsource/nunito-sans/400.css';
 import '@fontsource/nunito-sans/400-italic.css';
 import '@fontsource/nunito-sans/600.css';
@@ -55,7 +54,7 @@ $('#start-local').onclick = async () => {
   const session = new LocalSession(
     seats,
     view => app.onView(view),
-    (window as unknown as Record<string, number>).__wahooCpuDelay,
+    window.__wahooCpuDelay,
     undefined,
     readRules(),
     readSeatNames(),
@@ -220,7 +219,7 @@ $('#local-resume').onclick = async () => {
   const session = new LocalSession(
     saved.seats,
     view => app.onView(view),
-    (window as unknown as Record<string, number>).__wahooCpuDelay,
+    window.__wahooCpuDelay,
     saved.state,
     undefined,
     saved.names,
@@ -491,7 +490,5 @@ if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
 }
 
 // Exposed for end-to-end tests and console debugging.
-(window as unknown as Record<string, unknown>).__wahoo = {
-  app, trackPos, burrowPos, reservePos,
-};
+window.__wahoo = { app, trackPos, burrowPos, reservePos };
 
