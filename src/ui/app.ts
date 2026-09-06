@@ -49,30 +49,41 @@ export class App {
   private lastHumanSeat: number | null = null;
   private curtain = false;
 
-  /** True while a reaction bubble is playing: one at a time at this table. */
-  emoteBusy = false;
+  /** Seats with a reaction currently playing: one per player at a time. */
+  private emoteBusySeats = new Set<number>();
+
+  /** Is OUR seat's reaction still playing? (Others emote independently.) */
+  myEmoteBusy(): boolean {
+    const seat = this.view?.mySeat;
+    return seat !== null && seat !== undefined && this.emoteBusySeats.has(seat);
+  }
 
   /** Float a reaction bubble over the seat's corner of the board. */
   showEmote(seat: number, emoji: string) {
     if (seat < 0 || seat > 3) return;
-    if (this.emoteBusy) return; // wait for the current reaction to finish
-    this.emoteBusy = true;
-    $('#emote-bar').classList.add('cooling');
+    if (this.emoteBusySeats.has(seat)) return; // that player's is still playing
+    this.emoteBusySeats.add(seat);
+    const mine = seat === this.view?.mySeat;
     const bubble = document.createElement('span');
     bubble.className = `emote-bubble seat-${seat}`;
     bubble.innerHTML = emoteHtml(emoji, PLAYER_COLORS_CSS[seat]);
     $('#board-wrap').appendChild(bubble);
     playEmoteSound(emoji);
-    document
-      .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
-      .forEach(b => (b.disabled = true));
-    setTimeout(() => {
-      bubble.remove();
-      this.emoteBusy = false;
-      $('#emote-bar').classList.remove('cooling');
+    if (mine) {
+      $('#emote-bar').classList.add('cooling');
       document
         .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
-        .forEach(b => (b.disabled = false));
+        .forEach(b => (b.disabled = true));
+    }
+    setTimeout(() => {
+      bubble.remove();
+      this.emoteBusySeats.delete(seat);
+      if (mine) {
+        $('#emote-bar').classList.remove('cooling');
+        document
+          .querySelectorAll<HTMLButtonElement>('#emote-bar button[data-emote]')
+          .forEach(b => (b.disabled = false));
+      }
     }, 4200);
   }
 
