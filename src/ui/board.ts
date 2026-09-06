@@ -643,14 +643,17 @@ export class BoardView {
   }
 
   private pulse: { seat: number; started: number } | null = null;
+  private pulseLayer = new Container();
   private pulseG: Graphics | null = null;
 
   /** A brief expanding ring at a seat's corner: "it's this player's turn". */
   pulseSeat(seat: number) {
     this.pulse = { seat, started: performance.now() };
     if (!this.pulseG) {
+      // Its own layer: the focus layer is cleared on every render.
+      this.app.stage.addChild(this.pulseLayer);
       this.pulseG = new Graphics();
-      this.focusLayer.addChild(this.pulseG);
+      this.pulseLayer.addChild(this.pulseG);
     }
   }
 
