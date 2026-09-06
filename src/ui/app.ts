@@ -2,9 +2,14 @@
 // The in-game application: board, hand, status, and click handling.
 // ---------------------------------------------------------------------------
 import { $, esc } from './dom.ts';
-import { BoardView, burrowPos, emptyHighlights, reservePos, trackPos } from './board.ts';
+import { BoardView, burrowPos, emptyHighlights, reservePos } from './board.ts';
 import { PLAYER_COLORS_CSS, PLAYER_COLORS_LIT_CSS } from './palette.ts';
 import type { Highlights } from './board.ts';
+import {
+  CARD_HINTS, CARD_TOOLTIPS, SUIT_NAMES, cardFaceHtml, inked, isRed, roundWord, shortName,
+} from './cards.ts';
+import { Callouts, boardPoint } from './callouts.ts';
+import { VictoryView } from './victory.ts';
 import {
   ctrlPlayer, emptySelection, selectedActions, sevenCandidates, simBunnies, wrapAction,
 } from './selection.ts';
@@ -16,69 +21,19 @@ import type { P2PGuestSession, P2PHostSession } from '../net/p2p.ts';
 import type { RoomInfo, View } from '../net/protocol.ts';
 import { backwardDest, forwardDest } from '../engine/game.ts';
 import type { Bunny, CardAction, Move, MoveEffect } from '../engine/types.ts';
-import { PLAYER_NAMES, SPAWN_INDEX } from '../engine/types.ts';
+import { PLAYER_NAMES } from '../engine/types.ts';
 import { playEmoteSound, playMoveSound, playTurnChime } from '../sounds.ts';
 import { TIPS, dismissTip, showTip, tipSeen } from './tips.ts';
 import { emoteHtml } from './emotes.ts';
 
-export const CARD_HINTS: Record<string, string> = {
-  A: 'spawn / +1', '2': 'spawn / flip', '3': '+3', '4': 'back 4',
-  '5': '+5', '6': '+6', '7': 'split 7', '8': '+8', '9': '+9', '10': '+10',
-  J: 'swap', Q: '+12', K: 'stomp / +13',
-};
-
-const SUIT_NAMES: Record<string, string> = {
-  '♠': 'spades', '♥': 'hearts', '♦': 'diamonds', '♣': 'clubs',
-};
-
-const isRed = (card: { suit: string }) => card.suit === '♥' || card.suit === '♦';
-
-/** A playing-card face: corner indices, a big pip, and an optional note. */
-function cardFaceHtml(card: { rank: string; suit: string }, note = ''): string {
-  const idx = `<span class="index"><span>${esc(card.rank)}</span><span class="suit">${esc(card.suit)}</span></span>`;
-  return (
-    idx +
-    idx.replace('class="index"', 'class="index flip" aria-hidden="true"') +
-    `<span class="pip" aria-hidden="true">${esc(card.suit)}</span>` +
-    (note ? `<span class="hintline">${esc(note)}</span>` : '')
-  );
-}
-
-const NUMBER_WORDS = [
-  '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
-  'eleven', 'twelve',
-];
-const roundWord = (n: number) => NUMBER_WORDS[n] ?? String(n);
-
-/** A short player name: custom names as given, CPUs without the "CPU " prefix. */
-const shortName = (view: View, seat: number) =>
-  (view.seatNames[seat] ?? PLAYER_NAMES[seat]).replace(/^CPU /, '');
-/** A player's name in their ink colour (paper) or lit colour (dark felt). */
-const inked = (view: View, seat: number, lit = false) =>
-  `<b style="color:${(lit ? PLAYER_COLORS_LIT_CSS : PLAYER_COLORS_CSS)[seat]}">${esc(
-    shortName(view, seat),
-  )}</b>`;
-
-export const CARD_TOOLTIPS: Record<string, string> = {
-  A: 'Ace: spawn a bunny onto your corner space, or move one bunny forward 1.',
-  '2': 'Two: spawn a bunny or move one bunny forward 2 — then flip the top card of the draw pile and play it too.',
-  '3': 'Move one bunny forward 3 spaces.',
-  '4': 'Four: move one bunny backward 4 spaces (stays on the track).',
-  '5': 'Move one bunny forward 5 spaces.',
-  '6': 'Move one bunny forward 6 spaces.',
-  '7': 'Seven: move one bunny 7 spaces, or split the 7 between two bunnies.',
-  '8': 'Move one bunny forward 8 spaces.',
-  '9': 'Move one bunny forward 9 spaces.',
-  '10': 'Move one bunny forward 10 spaces.',
-  J: 'Jack: swap one of your bunnies with any other bunny on the track.',
-  Q: 'Queen: move one bunny forward 12 spaces.',
-  K: "King: move one bunny forward 13, or spawn from your reserve onto another player's bunny, stomping it.",
-};
+export { CARD_HINTS, CARD_TOOLTIPS } from './cards.ts';
 
 export type NetSession = OnlineSession | HttpSession | P2PHostSession | P2PGuestSession;
 
 export class App {
   board = new BoardView();
+  private callouts = new Callouts(this.board);
+  private victory = new VictoryView();
   boardReady = false;
   session: LocalSession | NetSession | null = null;
   online = false;
@@ -129,7 +84,7 @@ export class App {
   }
 
   async showGame() {
-    this.series = [0, 0];
+    this.victory.reset();
     $('#menu').hidden = true;
     $('#game').hidden = false;
     if (!this.boardReady) {
@@ -171,14 +126,14 @@ export class App {
     this.recentBunnies = new Set(view.effects.map(e => e.bunny));
     playMoveSound(view.effects);
     if (view.lastPlay && (view.effects.length > 0 || view.lastPlay.fold)) {
-      this.showMoveCallout(view);
+      this.callouts.showMove(view);
     }
     // Another player's bonus flip is board news, not a sidebar box (yours
     // stays in the sidebar: you have to choose how to play it).
     if (view.pendingFlip && !view.canAct) {
       if (this.lastFlipId !== view.pendingFlip.id) {
         this.lastFlipId = view.pendingFlip.id;
-        this.showFlipCallout(view);
+        this.callouts.showFlip(view);
       }
     } else if (!view.pendingFlip) {
       this.lastFlipId = null;
@@ -402,192 +357,7 @@ export class App {
     return { hi, hint };
   }
 
-  private calloutTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /** Board-space point -> pixel offset inside #board-wrap, following the canvas scale. */
-  private boardPoint(pt: { x: number; y: number }) {
-    const wrap = $('#board-wrap').getBoundingClientRect();
-    const canvas = $('#board-frame .board-canvas').getBoundingClientRect();
-    const k = canvas.width / 820;
-    return { x: canvas.left - wrap.left + pt.x * k, y: canvas.top - wrap.top + pt.y * k };
-  }
-
-  /**
-   * "Green moved a bunny 8 spaces" as a speech bubble on the board, pointing
-   * at the space where the move ended (or at the folder's corner).
-   */
   private lastFlipId: number | null = null;
-
-  /** "Green flipped a 7♦" as a board callout aimed at the flipper's corner. */
-  private showFlipCallout(view: View) {
-    const c = view.pendingFlip;
-    if (!c) return;
-    const corner = trackPos(SPAWN_INDEX(view.current));
-    this.showCallout(
-      () => corner,
-      `<span class="mini-card${isRed(c) ? ' red' : ''}">${esc(c.rank + c.suit)}</span>`,
-      `${inked(view, view.current)} flipped a bonus card!`,
-      view.current,
-    );
-  }
-
-  private showMoveCallout(view: View) {
-    const play = view.lastPlay;
-    if (!play) return;
-    const seatOf = (id: number) => view.bunnies.find(b => b.id === id)?.player ?? play.seat;
-    const mover = view.effects.find(e => e.kind !== 'stomped') ?? view.effects[0];
-    let pt: { x: number; y: number };
-    if (!mover) {
-      pt = trackPos(SPAWN_INDEX(play.seat));
-    } else if (mover.to.kind === 'track') {
-      pt = trackPos(mover.to.index);
-    } else if (mover.to.kind === 'burrow') {
-      pt = burrowPos(seatOf(mover.bunny), mover.to.slot);
-    } else {
-      pt = reservePos(seatOf(mover.bunny), 0);
-    }
-    // Aim at the bunny itself while it hops; fall back to the destination.
-    const ptOf = mover
-      ? () => this.board.piecePos(mover.bunny) ?? pt
-      : () => pt;
-    const seat = play.seat;
-    const who = inked(view, play.seat);
-    const card = play.card;
-    const cardHtml = play.fold || !card
-      ? '<span class="mini-card fold">✕</span>'
-      : `<span class="mini-card${isRed(card) ? ' red' : ''}">${esc(card.rank + card.suit)}</span>`;
-    const text = play.fold || !card
-      ? `${who} folded — no playable cards.`
-      : `${who} ${esc(play.desc || 'played')}${play.bonus ? ' <i>(bonus flip)</i>' : ''}`;
-    this.showCallout(ptOf, cardHtml, text, seat);
-  }
-
-  private calloutTrack: number | null = null;
-
-  /**
-   * A speech bubble in the acting player's quadrant of the board — kept off
-   * the track ring and burrows — its tail following `ptOf()` live.
-   */
-  private showCallout(
-    ptOf: () => { x: number; y: number },
-    cardHtml: string,
-    text: string,
-    seat: number,
-  ) {
-    const el = $('#move-callout');
-    el.innerHTML = `<div class="callout-box">${cardHtml}<span>${text}</span></div><div class="callout-tail"></div>`;
-    el.hidden = false;
-    el.classList.remove('show');
-    // Board geometry in logical space: ring corners and the safe inner field
-    // (2.3 cells in from the ring clears the tiles and the burrow tunnels).
-    const tl = trackPos(SPAWN_INDEX(2));
-    const br = trackPos(SPAWN_INDEX(0));
-    const cell = (br.x - tl.x) / 20;
-    const corner = trackPos(SPAWN_INDEX(seat));
-    const mid = { x: (tl.x + br.x) / 2, y: (tl.y + br.y) / 2 };
-    const anchor = this.boardPoint({
-      x: corner.x + (mid.x - corner.x) * 0.34,
-      y: corner.y + (mid.y - corner.y) * 0.34,
-    });
-    const safeMin = this.boardPoint({ x: tl.x + 2.3 * cell, y: tl.y + 2.3 * cell });
-    const safeMax = this.boardPoint({ x: br.x - 2.3 * cell, y: br.y - 2.3 * cell });
-    const box = el.querySelector<HTMLElement>('.callout-box')!;
-    const bx = Math.max(
-      safeMin.x + box.offsetWidth / 2,
-      Math.min(anchor.x, safeMax.x - box.offsetWidth / 2),
-    );
-    const by = Math.max(
-      safeMin.y + box.offsetHeight / 2,
-      Math.min(anchor.y, safeMax.y - box.offsetHeight / 2),
-    );
-    el.style.left = `${bx}px`;
-    el.style.top = `${by}px`;
-    const tail = el.querySelector<HTMLElement>('.callout-tail')!;
-    // The tail starts just past the box edge and stretches to the action —
-    // re-aimed every frame so it follows the bunny mid-hop.
-    const w2 = box.offsetWidth / 2;
-    const h2 = box.offsetHeight / 2;
-    const aim = () => {
-      const t = this.boardPoint(ptOf());
-      const ang = Math.atan2(t.y - by, t.x - bx);
-      const reach = Math.min(
-        w2 / Math.max(Math.abs(Math.cos(ang)), 1e-6),
-        h2 / Math.max(Math.abs(Math.sin(ang)), 1e-6),
-      ) - 2;
-      const tailLen = Math.hypot(t.x - bx, t.y - by);
-      tail.style.width = `${Math.max(14, tailLen - reach - 22)}px`;
-      tail.style.transform = `rotate(${ang}rad) translate(${reach}px, 0)`;
-    };
-    aim();
-    if (this.calloutTrack !== null) cancelAnimationFrame(this.calloutTrack);
-    const follow = () => {
-      if (el.hidden || !tail.isConnected) {
-        this.calloutTrack = null;
-        return;
-      }
-      aim();
-      this.calloutTrack = requestAnimationFrame(follow);
-    };
-    this.calloutTrack = requestAnimationFrame(follow);
-    void el.offsetWidth; // restart the animation
-    el.classList.add('show');
-    if (this.calloutTimer) clearTimeout(this.calloutTimer);
-    this.calloutTimer = setTimeout(() => {
-      el.hidden = true;
-    }, 5200);
-  }
-
-  private victoryShown = false;
-  private victoryCounted = false;
-  /** Team wins across "Play again" rematches this session. */
-  private series: [number, number] = [0, 0];
-
-  private renderVictory(view: View) {
-    const overlay = $('#victory');
-    if (view.winner === null) {
-      overlay.hidden = true;
-      this.victoryShown = false;
-      this.victoryCounted = false;
-      overlay.querySelectorAll('.confetti').forEach(c => c.remove());
-      return;
-    }
-    if (!this.victoryCounted) {
-      this.victoryCounted = true;
-      this.series[view.winner]++;
-    }
-    $('#btn-again').hidden = this.online && this.roomInfo?.youAreHost !== true;
-    const seats = view.winner === 0 ? [0, 2] : [1, 3];
-    $('#victory-rule').className = `paper-rule rule-team${view.winner}`;
-    $('#victory-title').innerHTML = `${inked(view, seats[0])} &amp; ${inked(view, seats[1])} win`;
-    const teamStomps = seats.reduce((s, i) => s + view.stats.stomps[i], 0);
-    const totalFolds = view.stats.folds.reduce((a, b) => a + b, 0);
-    const most = view.stats.stomps.indexOf(Math.max(...view.stats.stomps));
-    const stat = (value: string, label: string) =>
-      `<div><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
-    const gamesPlayed = this.series[0] + this.series[1];
-    $('#victory-stats').innerHTML =
-      stat(String(view.round), view.round === 1 ? 'Round' : 'Rounds') +
-      stat(String(teamStomps), 'Stomps') +
-      stat(String(totalFolds), totalFolds === 1 ? 'Fold' : 'Folds') +
-      (view.stats.stomps[most] > 0 ? stat(esc(shortName(view, most)), 'Most stomps') : '') +
-      (gamesPlayed > 1 ? stat(`${this.series[0]}–${this.series[1]}`, 'Series') : '');
-    overlay.hidden = false;
-    if (!this.victoryShown) {
-      this.victoryShown = true;
-      const colors = view.winner === 0
-        ? [PLAYER_COLORS_CSS[0], PLAYER_COLORS_CSS[2]]
-        : [PLAYER_COLORS_CSS[1], PLAYER_COLORS_CSS[3]];
-      for (let i = 0; i < 50; i++) {
-        const bit = document.createElement('span');
-        bit.className = 'confetti';
-        bit.style.left = `${Math.random() * 100}%`;
-        bit.style.background = colors[i % 2];
-        bit.style.animationDuration = `${2.2 + Math.random() * 2.4}s`;
-        bit.style.animationDelay = `${Math.random() * 1.6}s`;
-        overlay.appendChild(bit);
-      }
-    }
-  }
 
   /** Offer at most one unseen tip that the current view has just made relevant. */
   private maybeTips(view: View, curtainUp: boolean) {
@@ -628,7 +398,7 @@ export class App {
   /** A board-space point as a small page rectangle, for anchoring a tip. */
   private pointRect(pt: { x: number; y: number }) {
     const wrap = $('#board-wrap').getBoundingClientRect();
-    const { x, y } = this.boardPoint(pt);
+    const { x, y } = boardPoint(pt);
     return new DOMRect(wrap.left + x - 16, wrap.top + y - 16, 32, 32);
   }
 
@@ -677,7 +447,7 @@ export class App {
     }
 
     // Victory overlay with stats + rematch once a winner is decided.
-    this.renderVictory(view);
+    this.victory.render(view, this.online, this.roomInfo?.youAreHost === true);
 
     // Reactions are online-only (hot seat players can heckle in person);
     // spectators have no seat to react from.
