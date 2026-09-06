@@ -41,6 +41,7 @@ test.describe('PHP relay server', () => {
   });
 
   test('rooms work end to end over HTTP polling', async ({ page }) => {
+    await page.addInitScript(() => ((window as any).__wahooResolution = 1));
     await page.goto('./');
     await page.fill('#online-name', 'Tester');
     await page.click('#tab-server');
@@ -83,6 +84,7 @@ test.describe('PHP relay server', () => {
       })
     ).json();
 
+    await page.addInitScript(() => ((window as any).__wahooResolution = 1));
     // Open the deep link: it should join that dedicated server, not P2P.
     await page.goto(`./?join=${created.code}&server=http://127.0.0.1:${PHP_PORT}`);
     await page.waitForFunction(

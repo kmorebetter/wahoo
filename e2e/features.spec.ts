@@ -92,6 +92,7 @@ test('house rules from the menu reach the game state', async ({ page }) => {
 });
 
 test('first local game shows the tour once', async ({ page }) => {
+  await page.addInitScript(() => ((window as any).__wahooResolution = 1));
   await page.goto('./');
   await page.evaluate(() => ((window as any).__wahooCpuDelay = 60_000));
   await page.click('#start-local');
@@ -109,6 +110,7 @@ test('first local game shows the tour once', async ({ page }) => {
 });
 
 test('cards and moves work from the keyboard', async ({ page }) => {
+  await page.addInitScript(() => ((window as any).__wahooResolution = 1));
   await page.goto('./');
   await page.evaluate(() => {
     localStorage.setItem('wahoo-tour-done', '1');
