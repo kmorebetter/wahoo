@@ -59,6 +59,11 @@ const arm = (g: string, dark: string, x1: number, y1: number, x2: number, y2: nu
   `<circle cx="${x2}" cy="${y2}" r="3.6" fill="${g}" stroke="${dark}" stroke-width="1.2"/>`;
 
 const LOOKS: Record<string, Look> = {
+  // Neutral face: used for seat markers in the menus, not as a reaction.
+  plain: {
+    eyes: '',
+    mouth: thin('M-2.4,6.6 q2.4,1.8 4.8,0', 1.4),
+  },
   // Arms up, eyes squeezed happy, a small open grin, sparkles in the air.
   wahoo: {
     ears: [-14, 14],

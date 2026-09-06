@@ -21,6 +21,7 @@ import type { Difficulty, HouseRules } from './engine/types.ts';
 import { DEFAULT_RULES } from './engine/types.ts';
 import { EMOTES } from './net/protocol.ts';
 import { EMOTE_LABELS, emoteHtml } from './ui/emotes.ts';
+import { PLAYER_COLORS_CSS } from './ui/palette.ts';
 import { PLAYER_NAMES } from './engine/types.ts';
 import { isMuted, setMuted } from './sounds.ts';
 import { maybeStartTour } from './ui/tour.ts';
@@ -58,7 +59,7 @@ function buildSeatConfig() {
     const row = document.createElement('div');
     row.className = 'seat-row' + (i === 2 ? ' team-break' : '');
     row.innerHTML =
-      `<span class="seat-dot p${i}"></span>` +
+      `<span class="seat-bunny" aria-hidden="true">${emoteHtml('plain', PLAYER_COLORS_CSS[i])}</span>` +
       `<span class="seat-color">${PLAYER_NAMES[i]}</span>` +
       `<span class="seat-label" data-label-seat="${i}">CPU ${PLAYER_NAMES[i]}</span>` +
       `<input class="seat-name" data-name-seat="${i}" maxlength="12" value="${esc(names[i])}"` +
@@ -428,7 +429,9 @@ function renderLobby(session: NetSession, room: RoomInfo) {
             room.yourSeat === i ? '<span class="tag">you</span>' : ''
           }</span>`
       : `<span class="seat-name-text open">Open seat<span class="tag">${PLAYER_NAMES[i]}</span></span>`;
-    row.innerHTML = `<span class="seat-dot p${i}"></span>${name}${status}${controls}`;
+    row.innerHTML =
+      `<span class="seat-bunny" aria-hidden="true">${emoteHtml('plain', PLAYER_COLORS_CSS[i])}</span>` +
+      `${name}${status}${controls}`;
     seats.appendChild(row);
   });
   lobby.appendChild(seats);
