@@ -129,6 +129,7 @@ export class App {
   }
 
   async showGame() {
+    this.series = [0, 0];
     $('#menu').hidden = true;
     $('#game').hidden = false;
     if (!this.boardReady) {
@@ -537,14 +538,22 @@ export class App {
   }
 
   private victoryShown = false;
+  private victoryCounted = false;
+  /** Team wins across "Play again" rematches this session. */
+  private series: [number, number] = [0, 0];
 
   private renderVictory(view: View) {
     const overlay = $('#victory');
     if (view.winner === null) {
       overlay.hidden = true;
       this.victoryShown = false;
+      this.victoryCounted = false;
       overlay.querySelectorAll('.confetti').forEach(c => c.remove());
       return;
+    }
+    if (!this.victoryCounted) {
+      this.victoryCounted = true;
+      this.series[view.winner]++;
     }
     $('#btn-again').hidden = this.online && this.roomInfo?.youAreHost !== true;
     const seats = view.winner === 0 ? [0, 2] : [1, 3];
@@ -555,11 +564,13 @@ export class App {
     const most = view.stats.stomps.indexOf(Math.max(...view.stats.stomps));
     const stat = (value: string, label: string) =>
       `<div><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+    const gamesPlayed = this.series[0] + this.series[1];
     $('#victory-stats').innerHTML =
       stat(String(view.round), view.round === 1 ? 'Round' : 'Rounds') +
       stat(String(teamStomps), 'Stomps') +
       stat(String(totalFolds), totalFolds === 1 ? 'Fold' : 'Folds') +
-      (view.stats.stomps[most] > 0 ? stat(esc(shortName(view, most)), 'Most stomps') : '');
+      (view.stats.stomps[most] > 0 ? stat(esc(shortName(view, most)), 'Most stomps') : '') +
+      (gamesPlayed > 1 ? stat(`${this.series[0]}–${this.series[1]}`, 'Series') : '');
     overlay.hidden = false;
     if (!this.victoryShown) {
       this.victoryShown = true;
