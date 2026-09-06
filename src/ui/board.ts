@@ -220,8 +220,11 @@ export class BoardView {
       // The canvas can be displayed at up to ~2x its 820px logical size, and
       // each CSS pixel is devicePixelRatio device pixels: render with enough
       // backing store for both so nothing looks pixelated on big or high-DPI
-      // screens (capped at 4x = a 3280px backing store).
-      resolution: Math.min(4, 2 * (globalThis.devicePixelRatio || 1)),
+      // screens (capped at 4x = a 3280px backing store). Tests override this:
+      // headless browsers software-render, where a big canvas eats the CPU.
+      resolution:
+        (globalThis as { __wahooResolution?: number }).__wahooResolution ??
+        Math.min(4, 2 * (globalThis.devicePixelRatio || 1)),
     });
     this.app.canvas.classList.add('board-canvas');
     // The canvas itself is opaque to assistive tech; give it a name and let
@@ -558,12 +561,6 @@ export class BoardView {
       const piece = this.pieces.get(id);
       if (piece) candidates.push({ x: piece.tx, y: piece.ty, act: () => this.cb.onBunny(id) });
     }
-    // The picked-up bunny too: tapping it again puts it back down.
-    if (hi.selected !== null) {
-      const id = hi.selected;
-      const piece = this.pieces.get(id);
-      if (piece) candidates.push({ x: piece.tx, y: piece.ty, act: () => this.cb.onBunny(id) });
-    }
     for (const i of hi.track.keys()) {
       const p = trackPos(i);
       candidates.push({ x: p.x, y: p.y, act: () => this.cb.onTrack(i) });
@@ -578,6 +575,13 @@ export class BoardView {
         const p = reservePos(player, n);
         candidates.push({ x: p.x, y: p.y, act: () => this.cb.onReserve(player) });
       }
+    }
+    // The picked-up bunny too: tapping it again puts it back down. Last, so
+    // keyboard focus cycles through the real destinations first.
+    if (hi.selected !== null) {
+      const id = hi.selected;
+      const piece = this.pieces.get(id);
+      if (piece) candidates.push({ x: piece.tx, y: piece.ty, act: () => this.cb.onBunny(id) });
     }
     return candidates;
   }
